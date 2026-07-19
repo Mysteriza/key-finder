@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Key Finder</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="brand">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        <span>Key Finder</span>
+      </div>
+      <div class="header-end">
+        <button id="popup-theme" class="header-btn" title="Toggle dark mode">
+          <svg id="popup-theme-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path id="popup-theme-path" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
+        <span id="domain-badge"></span>
+      </div>
+    </header>
+
+    <div id="content">
+      <div id="loading" class="state-msg">
+        <svg class="spinner" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10" opacity="0.2"/>
+          <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
+        </svg>
+        <p>Scanning&hellip;</p>
+      </div>
+
+      <div id="empty" class="state-msg hidden">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="empty-icon">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+            <p>No sensitive keys found</p>
+            <span class="sub">This page looks safe</span>
+      </div>
+
+      <div id="findings-list" class="hidden"></div>
+    </div>
+
+    <footer>
+      <button id="btn-dashboard" class="btn btn-secondary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+        </svg>
+        Dashboard
+      </button>
+      <button id="btn-clear" class="btn btn-danger hidden">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+        </svg>
+        Clear
+      </button>
+    </footer>
+  </div>
+
+  <div id="detail-overlay" class="overlay hidden">
+    <div class="overlay-backdrop"></div>
+    <div class="overlay-panel">
+      <div class="overlay-header">
+        <span id="detail-name" class="overlay-title"></span>
+        <span id="detail-severity" class="overlay-sev"></span>
+      </div>
+      <div class="overlay-body">
+        <div class="detail-field">
+          <label>Value</label>
+          <pre id="detail-value" class="detail-code"></pre>
+        </div>
+        <div class="detail-field">
+          <label>Context</label>
+          <pre id="detail-context" class="detail-code small"></pre>
+        </div>
+        <div class="detail-meta">
+          <span id="detail-domain"></span>
+          <span id="detail-source"></span>
+          <span id="detail-time"></span>
+        </div>
+      </div>
+      <div class="overlay-footer">
+        <button id="detail-copy" class="btn btn-secondary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          Copy
+        </button>
+        <button id="detail-close" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

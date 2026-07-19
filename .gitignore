@@ -1,0 +1,30 @@
+# OS
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# IDE
+.vscode/settings.json
+.vscode/launch.json
+*.swp
+*.swo
+*~
+.idea/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Node (if any)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Chrome extension build artifacts
+*.crx
+*.pem
+*.zip
+dist/
+build/
