@@ -165,6 +165,7 @@ header {
 .severity-line.high { background: var(--high); }
 .severity-line.medium { background: var(--medium); }
 .severity-line.low { background: var(--low); }
+.severity-line.info { background: #6c8cff; }
 
 .finding-body { flex: 1; min-width: 0; }
 
@@ -283,6 +284,7 @@ footer {
 .overlay-sev.high { background: var(--high-bg); color: var(--high); }
 .overlay-sev.medium { background: var(--medium-bg); color: var(--medium); }
 .overlay-sev.low { background: var(--low-bg); color: var(--text-muted); }
+.overlay-sev.info { background: rgba(108,140,255,0.12); color: #6c8cff; }
 
 .overlay-body {
   flex: 1;

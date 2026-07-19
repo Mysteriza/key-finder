@@ -8,6 +8,70 @@ let currentDetail = null;
 let currentPage = 1;
 let currentDomainTab = '';
 const PAGE_SIZE = 15;
+const GEMINI_VERIFY_CACHE = {};
+
+const GEMINI_MODEL = 'gemini-3.1-flash-lite';
+
+const GEMINI_STATUS = {
+  ACTIVE: ['ACTIVE', '#22c55e'],
+  QUOTA: ['QUOTA', '#eab308'],
+  BLOCKED: ['BLOCKED', '#ef4444'],
+  DISABLED: ['DISABLED', '#eab308'],
+  INVALID: ['INVALID', '#ef4444'],
+  NOT_FOUND: ['NOT_FOUND', '#ef4444'],
+  TIMEOUT: ['TIMEOUT', '#888'],
+  UNKNOWN: ['UNKNOWN', '#a855f7'],
+  ERROR: ['ERROR', '#ef4444'],
+};
+
+async function verifyGoogleKey(key) {
+  if (GEMINI_VERIFY_CACHE[key]) return GEMINI_VERIFY_CACHE[key];
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
+  const payload = {
+    contents: [{ parts: [{ text: 'Say OK in 1 word' }] }],
+    safetySettings: [
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+    ],
+  };
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const r = await fetch(url, { method: 'POST', body: JSON.stringify(payload), signal: controller.signal });
+    clearTimeout(timeout);
+    const data = await r.json();
+
+    let status = 'UNKNOWN';
+    if (r.status === 200) {
+      status = 'ACTIVE';
+    } else {
+      const msg = (data?.error?.message || '').toLowerCase();
+      if (msg.includes('not valid')) status = 'INVALID';
+      else if (msg.includes('disabled') || msg.includes('not been used')) status = 'DISABLED';
+      else if (r.status === 429) status = 'QUOTA';
+      else if (msg.includes('blocked')) status = 'BLOCKED';
+      else if (r.status === 404 || msg.includes('not found')) status = 'NOT_FOUND';
+    }
+    GEMINI_VERIFY_CACHE[key] = status;
+    return status;
+  } catch {
+    GEMINI_VERIFY_CACHE[key] = 'ERROR';
+    return 'ERROR';
+  }
+}
+
+async function autoVerifyGoogleKeys() {
+  const keys = allFindingsFlat.filter(f =>
+    f.patternId === 'google-ai' && !GEMINI_VERIFY_CACHE[f.value]
+  );
+  if (keys.length === 0) return;
+  await Promise.allSettled(keys.map(k => verifyGoogleKey(k.value)));
+  renderFindings();
+}
 
 async function init() {
   await loadTheme();
@@ -20,6 +84,7 @@ async function init() {
   bindFilters();
   bindActions();
   bindPagination();
+  autoVerifyGoogleKeys();
 }
 
 function loadTheme() {
@@ -90,7 +155,7 @@ function timeAgo(ts) {
 }
 
 function renderOverview() {
-  const bySeverity = { critical: 0, high: 0, medium: 0, low: 0 };
+  const bySeverity = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
   const domainCounts = {};
 
   for (const f of allFindingsFlat) {
@@ -105,6 +170,7 @@ function renderOverview() {
   $('#stat-high').textContent = bySeverity.high;
   $('#stat-medium').textContent = bySeverity.medium;
   $('#stat-low').textContent = bySeverity.low;
+  $('#stat-info').textContent = bySeverity.info;
   $('#stat-domains').textContent = Object.keys(domainCounts).length;
 
   const sorted = Object.entries(domainCounts).sort((a, b) => b[1] - a[1]);
@@ -125,9 +191,12 @@ function renderOverview() {
   });
 
   const maxSev = Math.max(...Object.values(bySeverity), 1);
-  for (const sev of ['critical', 'high', 'medium', 'low']) {
-    $(`#bar-${sev}`).textContent = bySeverity[sev];
-    $(`#bar-${sev}`).closest('.bar-item').querySelector('.bar-fill').style.width = (bySeverity[sev] / maxSev) * 100 + '%';
+  for (const sev of ['critical', 'high', 'medium', 'low', 'info']) {
+    const el = $(`#bar-${sev}`);
+    if (el) {
+      el.textContent = bySeverity[sev];
+      el.closest('.bar-item').querySelector('.bar-fill').style.width = (bySeverity[sev] / maxSev) * 100 + '%';
+    }
   }
 
   $('#nav-count').textContent = total;
@@ -196,6 +265,18 @@ function renderFindings() {
     const globalIdx = start + i;
     const tr = document.createElement('tr');
     const displayVal = f.value.length > 100 ? f.value.slice(0, 100) + '...' : f.value;
+
+    let statusHtml = '<span class="status-dash">-</span>';
+    if (f.patternId === 'google-ai') {
+      const cached = GEMINI_VERIFY_CACHE[f.value];
+      if (cached) {
+        const st = GEMINI_STATUS[cached] || ['UNKNOWN', '#a855f7'];
+        statusHtml = `<span class="gemini-status ${cached.toLowerCase()}" style="color:${st[1]}">${st[0]}</span>`;
+      } else {
+        statusHtml = `<button class="btn btn-verify" data-key="${esc(f.value)}" title="Test this key against Gemini API">Verify</button>`;
+      }
+    }
+
     tr.innerHTML = `
       <td><span class="sev-dot ${f.severity || 'low'}"></span></td>
       <td class="type-cell" title="${esc(f.name)}">${esc(f.name).slice(0, 36)}</td>
@@ -203,6 +284,7 @@ function renderFindings() {
       <td><div class="value-cell clickable" data-idx="${globalIdx}" title="Click to view full value">${esc(displayVal)}</div></td>
       <td class="domain-cell">${esc(f.domain)}</td>
       <td class="time-cell">${f.detectedAt ? timeAgo(f.detectedAt) : '-'}</td>
+      <td class="status-cell">${statusHtml}</td>
       <td>
         <button class="btn-icon copy-btn" title="Copy value">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -212,6 +294,20 @@ function renderFindings() {
         </button>
       </td>
     `;
+
+    if (f.patternId === 'google-ai') {
+      const verifyBtn = tr.querySelector('.btn-verify');
+      if (verifyBtn) {
+        verifyBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const key = verifyBtn.dataset.key;
+          verifyBtn.textContent = 'Testing…';
+          verifyBtn.disabled = true;
+          const status = await verifyGoogleKey(key);
+          renderFindings();
+        });
+      }
+    }
     tr.querySelector('.value-cell').addEventListener('click', () => showModal(f));
     const btn = tr.querySelector('.copy-btn');
     const copyVal = f.value.split(' = ').pop() || f.value;
