@@ -52,8 +52,11 @@ Key Finder detects 45+ credential patterns including:
 Additionally, 55+ endpoint paths are probed for exposed files like `.env`, `config.json`, `credentials`, and backup files.
 
 ## Screenshots
+<img width="465" height="306" alt="image" src="https://github.com/user-attachments/assets/c75cdbfc-f3a4-4258-b010-96c2958e3722" />
+<img width="1918" height="937" alt="image" src="https://github.com/user-attachments/assets/9efa8ab5-7962-49a0-ac52-9a221fe3cfb0" />
+<img width="1918" height="935" alt="image" src="https://github.com/user-attachments/assets/348a1ff0-9828-41b0-8cc4-19b7db4fcb5f" />
+<img width="1918" height="935" alt="image" src="https://github.com/user-attachments/assets/0cab300f-7082-48df-bf63-e1079983c441" />
 
-*(Add screenshots here)*
 
 ## Privacy
 
