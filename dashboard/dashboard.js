@@ -8,68 +8,20 @@ let currentDetail = null;
 let currentPage = 1;
 let currentDomainTab = '';
 const PAGE_SIZE = 15;
-const GEMINI_VERIFY_CACHE = {};
 
-const GEMINI_MODEL = 'gemini-3.1-flash-lite';
+const VERIFIABLE_IDS = ['openai', 'anthropic', 'google-ai', 'huggingface', 'replicate', 'github-token', 'stripe-live', 'stripe-test'];
 
-const GEMINI_STATUS = {
-  ACTIVE: ['ACTIVE', '#22c55e'],
-  QUOTA: ['QUOTA', '#eab308'],
-  BLOCKED: ['BLOCKED', '#ef4444'],
-  DISABLED: ['DISABLED', '#eab308'],
-  INVALID: ['INVALID', '#ef4444'],
-  NOT_FOUND: ['NOT_FOUND', '#ef4444'],
-  TIMEOUT: ['TIMEOUT', '#888'],
-  UNKNOWN: ['UNKNOWN', '#a855f7'],
-  ERROR: ['ERROR', '#ef4444'],
-};
-
-async function verifyGoogleKey(key) {
-  if (GEMINI_VERIFY_CACHE[key]) return GEMINI_VERIFY_CACHE[key];
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
-  const payload = {
-    contents: [{ parts: [{ text: 'Say OK in 1 word' }] }],
-    safetySettings: [
-      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-    ],
-  };
-
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    const r = await fetch(url, { method: 'POST', body: JSON.stringify(payload), signal: controller.signal });
-    clearTimeout(timeout);
-    const data = await r.json();
-
-    let status = 'UNKNOWN';
-    if (r.status === 200) {
-      status = 'ACTIVE';
-    } else {
-      const msg = (data?.error?.message || '').toLowerCase();
-      if (msg.includes('not valid')) status = 'INVALID';
-      else if (msg.includes('disabled') || msg.includes('not been used')) status = 'DISABLED';
-      else if (r.status === 429) status = 'QUOTA';
-      else if (msg.includes('blocked')) status = 'BLOCKED';
-      else if (r.status === 404 || msg.includes('not found')) status = 'NOT_FOUND';
-    }
-    GEMINI_VERIFY_CACHE[key] = status;
-    return status;
-  } catch {
-    GEMINI_VERIFY_CACHE[key] = 'ERROR';
-    return 'ERROR';
-  }
+async function verifyKey(finding) {
+  const result = await KeyValidator.validate(finding.value, finding.patternId);
+  renderFindings();
 }
 
-async function autoVerifyGoogleKeys() {
+async function autoVerifyKeys() {
   const keys = allFindingsFlat.filter(f =>
-    f.patternId === 'google-ai' && !GEMINI_VERIFY_CACHE[f.value]
+    VERIFIABLE_IDS.includes(f.patternId) && !KeyValidator._cache[f.patternId + ':' + f.value]
   );
   if (keys.length === 0) return;
-  await Promise.allSettled(keys.map(k => verifyGoogleKey(k.value)));
+  await Promise.allSettled(keys.map(k => KeyValidator.validate(k.value, k.patternId)));
   renderFindings();
 }
 
@@ -84,7 +36,7 @@ async function init() {
   bindFilters();
   bindActions();
   bindPagination();
-  autoVerifyGoogleKeys();
+  autoVerifyKeys();
 }
 
 function loadTheme() {
@@ -267,13 +219,14 @@ function renderFindings() {
     const displayVal = f.value.length > 100 ? f.value.slice(0, 100) + '...' : f.value;
 
     let statusHtml = '<span class="status-dash">-</span>';
-    if (f.patternId === 'google-ai') {
-      const cached = GEMINI_VERIFY_CACHE[f.value];
+    if (VERIFIABLE_IDS.includes(f.patternId)) {
+      const cacheKey = f.patternId + ':' + f.value;
+      const cached = KeyValidator._cache[cacheKey];
       if (cached) {
-        const st = GEMINI_STATUS[cached] || ['UNKNOWN', '#a855f7'];
-        statusHtml = `<span class="gemini-status ${cached.toLowerCase()}" style="color:${st[1]}">${st[0]}</span>`;
+        const sl = KeyValidator.STATUS_LABELS[cached.status] || ['UNKNOWN', '#a855f7'];
+        statusHtml = `<span class="gemini-status ${cached.status.toLowerCase()}" style="color:${sl[1]}">${sl[0]}</span>`;
       } else {
-        statusHtml = `<button class="btn btn-verify" data-key="${esc(f.value)}" title="Test this key against Gemini API">Verify</button>`;
+        statusHtml = `<button class="btn btn-verify" data-key="${esc(f.value)}" data-pattern="${f.patternId}" title="Test this key against the API">Verify</button>`;
       }
     }
 
@@ -295,18 +248,15 @@ function renderFindings() {
       </td>
     `;
 
-    if (f.patternId === 'google-ai') {
-      const verifyBtn = tr.querySelector('.btn-verify');
-      if (verifyBtn) {
-        verifyBtn.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          const key = verifyBtn.dataset.key;
-          verifyBtn.textContent = 'Testing…';
-          verifyBtn.disabled = true;
-          const status = await verifyGoogleKey(key);
-          renderFindings();
-        });
-      }
+    const verifyBtn = tr.querySelector('.btn-verify');
+    if (verifyBtn) {
+      verifyBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        verifyBtn.textContent = 'Testing…';
+        verifyBtn.disabled = true;
+        await KeyValidator.validate(verifyBtn.dataset.key, verifyBtn.dataset.pattern);
+        renderFindings();
+      });
     }
     tr.querySelector('.value-cell').addEventListener('click', () => showModal(f));
     const btn = tr.querySelector('.copy-btn');
@@ -493,6 +443,7 @@ function bindActions() {
 
   $('#settings-clear-cache').addEventListener('click', async () => {
     await chrome.storage.local.remove('scanCache');
+    KeyValidator._cache = {};
     const status = $('#settings-status');
     status.textContent = 'Cache cleared';
     status.classList.add('visible');
